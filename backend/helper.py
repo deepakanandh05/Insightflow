@@ -36,20 +36,37 @@ def connect_milvus(host: str = "localhost", port: str = "19530"):
     connections.connect(alias="default", host=host, port=port)
     print(f"Connected to Milvus at {host}:{port}")
 
-def get_vector_store(host: str, port: str, collection_name: str):
-    """Return Milvus vector store and storage context."""
-    vector_store = MilvusVectorStore(
-        uri=f"tcp://{host}:{port}",
-        collection_name=collection_name,
-        dim=384,
-        overwrite=False,
-        index_params={
-            "metric_type": "COSINE",
-            "index_type": "HNSW",
-            "params": {"M": 16, "efConstruction": 128},
-        },
-        search_params={"ef": 64},
-    )
+def get_vector_store(host: str, port: str, collection_name: str, token: str = None):
+    """Return Milvus vector store and storage context.
+    Supports both local Milvus and Zilliz Cloud."""
+    
+    # Determine if using Zilliz Cloud (has token) or local Milvus
+    if token:
+        # Zilliz Cloud configuration
+        uri = f"https://{host}:{port}"
+        vector_store = MilvusVectorStore(
+            uri=uri,
+            token=token,
+            collection_name=collection_name,
+            dim=384,
+            overwrite=False,
+        )
+    else:
+        # Local Milvus configuration
+        uri = f"tcp://{host}:{port}"
+        vector_store = MilvusVectorStore(
+            uri=uri,
+            collection_name=collection_name,
+            dim=384,
+            overwrite=False,
+            index_params={
+                "metric_type": "COSINE",
+                "index_type": "HNSW",
+                "params": {"M": 16, "efConstruction": 128},
+            },
+            search_params={"ef": 64},
+        )
+    
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
     return vector_store, storage_context
 

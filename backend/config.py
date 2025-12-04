@@ -6,6 +6,7 @@ load_dotenv()
 # Milvus Configuration
 MILVUS_HOST = os.getenv("MILVUS_HOST", "localhost")
 MILVUS_PORT = os.getenv("MILVUS_PORT", "19530")
+MILVUS_TOKEN = os.getenv("MILVUS_TOKEN", "")  # For Zilliz Cloud
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "insightflow_docs")
 
 # API Keys

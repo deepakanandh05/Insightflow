@@ -259,14 +259,20 @@ def storage_agent(state: ResearchState) -> ResearchState:
     print(f"\n[5. STORAGE] Storing in vector database...")
     
     try:
-        # Connect to Milvus
-        connect_milvus(MILVUS_HOST, MILVUS_PORT)
+        # Connect to Milvus (skip for Zilliz Cloud - uses HTTPS)
+        if not MILVUS_TOKEN:
+            connect_milvus(MILVUS_HOST, MILVUS_PORT)
         
         # Setup embedding model
         embed_model = get_embedding_model()
         
-        # Setup vector store and storage context
-        vector_store, storage_context = get_vector_store(MILVUS_HOST, MILVUS_PORT, COLLECTION_NAME)
+        # Setup vector store and storage context (with optional Zilliz token)
+        vector_store, storage_context = get_vector_store(
+            MILVUS_HOST, 
+            MILVUS_PORT, 
+            COLLECTION_NAME,
+            token=MILVUS_TOKEN if MILVUS_TOKEN else None
+        )
         
         parser = setup_parser(embed_model)
         
