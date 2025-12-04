@@ -1,0 +1,134 @@
+services:
+  # ========== Milvus Vector Database Stack ==========
+  
+  # etcd - Milvus metadata storage
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.0
+    container_name: insightflow-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    command:
+      - etcd
+      - --data-dir=/etcd
+      - --advertise-client-urls=http://0.0.0.0:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://0.0.0.0:2380
+      - --initial-cluster-token=etcd-cluster-1
+      - --initial-cluster=default=http://0.0.0.0:2380
+    ports:
+      - "2379:2379"
+    volumes:
+      - etcd_data:/etcd
+    restart: always
+    networks:
+      - insightflow-network
+
+  # MinIO - Object storage for Milvus
+  minio:
+    image: minio/minio:latest
+    container_name: insightflow-minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - insightflow-network
+
+  # Milvus - Vector Database
+  milvus:
+    image: milvusdb/milvus:v2.4.0
+    container_name: insightflow-milvus
+    command: ["milvus", "run", "standalone"]
+    restart: always
+    depends_on:
+      - etcd
+      - minio
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    environment:
+      - ETCD_ENDPOINTS=etcd:2379
+      - MINIO_ADDRESS=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    volumes:
+      - milvus_data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+    networks:
+      - insightflow-network
+
+  # Attu - Milvus Management UI
+  attu:
+    image: zilliz/attu:latest
+    container_name: insightflow-attu
+    ports:
+      - "8080:3000"
+    environment:
+      - MILVUS_URL=milvus:19530
+    depends_on:
+      milvus:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - insightflow-network
+
+  # ========== InsightFlow Backend ==========
+  
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: insightflow-backend
+    ports:
+      - "8001:8001"
+    environment:
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+      - COLLECTION_NAME=insightflow_docs
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FRONTEND_URL=http://localhost:5173
+    depends_on:
+      milvus:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - insightflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# ========== Networks & Volumes ==========
+
+networks:
+  insightflow-network:
+    driver: bridge
+
+volumes:
+  etcd_data:
+    driver: local
+  minio_data:
+    driver: local
+  milvus_data:
+    driver: local
