@@ -286,4 +286,3 @@ For issues or questions, please open a GitHub issue.
 
 ---
 
-**Built with ❤️ using AI-powered development**
